@@ -7,6 +7,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,14 +26,13 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.AccountBox
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.EditNote
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.NoteAdd
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -42,7 +42,6 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -120,12 +119,7 @@ fun MobileOrganizerApp() {
                     icon = { Icon(it.icon, contentDescription = it.label) },
                     label = { Text(it.label) },
                     selected = it == currentDestination,
-                    onClick = { currentDestination = it },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = MaterialTheme.colorScheme.onPrimary,
-                        selectedTextColor = MaterialTheme.colorScheme.primary,
-                        indicatorColor = MaterialTheme.colorScheme.primary
-                    )
+                    onClick = { currentDestination = it }
                 )
             }
         }
@@ -338,7 +332,7 @@ fun NotesPage(notes: List<NoteItem>, onCreateClick: () -> Unit, modifier: Modifi
         )
         Spacer(Modifier.height(8.dp))
         Button(onClick = onCreateClick, modifier = Modifier.fillMaxWidth()) {
-            Icon(Icons.Default.NoteAdd, contentDescription = null)
+            Icon(Icons.Default.Favorite, contentDescription = null)
             Spacer(Modifier.width(8.dp))
             Text("Создать заметку")
         }
@@ -397,7 +391,7 @@ fun TasksPage(
         )
         Spacer(Modifier.height(8.dp))
         Button(onClick = onCreateClick, modifier = Modifier.fillMaxWidth()) {
-            Icon(Icons.Default.EditNote, contentDescription = null)
+            Icon(Icons.Default.CheckCircle, contentDescription = null)
             Spacer(Modifier.width(8.dp))
             Text("Создать задачу")
         }
@@ -489,7 +483,7 @@ fun TaskDialog(onDismiss: () -> Unit, onSave: (String, String, TaskPriority) -> 
 }
 
 enum class AppDestinations(val label: String, val icon: ImageVector) {
-    CALENDAR("Календарь", Icons.Default.CalendarMonth),
-    NOTES("Заметки", Icons.Default.NoteAdd),
-    TASKS("Задачи", Icons.Default.CheckCircle),
+    CALENDAR("Календарь", Icons.Default.Home),
+    NOTES("Заметки", Icons.Default.Favorite),
+    TASKS("Задачи", Icons.Default.AccountBox),
 }
