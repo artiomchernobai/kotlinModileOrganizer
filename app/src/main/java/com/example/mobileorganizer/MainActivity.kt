@@ -5,13 +5,11 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -24,7 +22,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBox
@@ -33,11 +30,16 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenu
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -47,6 +49,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteType
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -80,27 +83,33 @@ class MainActivity : ComponentActivity() {
 }
 
 data class NoteItem(val id: Long, val date: String, val title: String, val description: String)
+
 data class TaskItem(
     val id: Long,
     val title: String,
     val description: String,
     val priority: TaskPriority,
-    val isDone: Boolean = false
+    val status: TaskStatus
 )
 
 enum class TaskPriority(val label: String, val tint: Color) {
-    HIGH("Высокий", Color(0xFFD32F2F)),
-    MEDIUM("Средний", Color(0xFFF57C00)),
-    LOW("Низкий", Color(0xFF388E3C)),
+    HIGH("Высокий", Color(0xFFE53935)),
+    MEDIUM("Обычный", Color(0xFF5A2D91)),
+    LOW("Низкий", Color(0xFF64B5F6))
+}
+
+enum class TaskStatus(val label: String) {
+    ACTIVE("Активная"),
+    COMPLETED("Завершенная")
 }
 
 enum class TaskSortMode(val label: String) {
     ALL("Все"),
-    COMPLETED("Выполненные"),
-    NOT_COMPLETED("Невыполненные"),
-    HIGH("Высокий приоритет"),
-    MEDIUM("Средний приоритет"),
-    LOW("Низкий приоритет"),
+    ACTIVE("Активные"),
+    COMPLETED("Завершенные"),
+    HIGH("Высокий"),
+    MEDIUM("Обычные"),
+    LOW("Низкий")
 }
 
 @Composable
@@ -113,6 +122,7 @@ fun MobileOrganizerApp() {
     var showTaskDialog by remember { mutableStateOf(false) }
 
     NavigationSuiteScaffold(
+        layoutType = NavigationSuiteType.NavigationBar,
         navigationSuiteItems = {
             AppDestinations.entries.forEach {
                 item(
@@ -124,7 +134,7 @@ fun MobileOrganizerApp() {
             }
         }
     ) {
-        Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
+        Scaffold { innerPadding ->
             when (currentDestination) {
                 AppDestinations.CALENDAR -> CalendarPage(
                     notes = notes,
@@ -135,7 +145,7 @@ fun MobileOrganizerApp() {
                 AppDestinations.NOTES -> NotesPage(
                     notes = notes,
                     onCreateClick = {
-                        noteDialogDate = SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
+                        noteDialogDate = SimpleDateFormat("dd MMMM yyyy", Locale("ru"))
                             .format(Calendar.getInstance().time)
                     },
                     modifier = Modifier.padding(innerPadding)
@@ -146,7 +156,12 @@ fun MobileOrganizerApp() {
                     onCreateClick = { showTaskDialog = true },
                     onToggleDone = { id ->
                         val i = tasks.indexOfFirst { it.id == id }
-                        if (i != -1) tasks[i] = tasks[i].copy(isDone = !tasks[i].isDone)
+                        if (i != -1) {
+                            val now = tasks[i]
+                            tasks[i] = now.copy(
+                                status = if (now.status == TaskStatus.ACTIVE) TaskStatus.COMPLETED else TaskStatus.ACTIVE
+                            )
+                        }
                     },
                     modifier = Modifier.padding(innerPadding)
                 )
@@ -159,15 +174,7 @@ fun MobileOrganizerApp() {
             date = selectedDate,
             onDismiss = { noteDialogDate = null },
             onSave = { title, description ->
-                notes.add(
-                    0,
-                    NoteItem(
-                        id = System.currentTimeMillis(),
-                        date = selectedDate,
-                        title = title,
-                        description = description
-                    )
-                )
+                notes.add(0, NoteItem(System.currentTimeMillis(), selectedDate, title, description))
                 noteDialogDate = null
             }
         )
@@ -176,16 +183,8 @@ fun MobileOrganizerApp() {
     if (showTaskDialog) {
         TaskDialog(
             onDismiss = { showTaskDialog = false },
-            onSave = { title, description, priority ->
-                tasks.add(
-                    0,
-                    TaskItem(
-                        id = System.currentTimeMillis(),
-                        title = title,
-                        description = description,
-                        priority = priority
-                    )
-                )
+            onSave = { title, description, priority, status ->
+                tasks.add(0, TaskItem(System.currentTimeMillis(), title, description, priority, status))
                 showTaskDialog = false
             }
         )
@@ -198,7 +197,7 @@ fun CalendarPage(notes: List<NoteItem>, onDayClick: (String) -> Unit, modifier: 
         "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
         "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"
     )
-    val weekDays = listOf("Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб")
+    val weekDays = listOf("ПН", "ВТ", "СР", "ЧТ", "ПТ", "СБ", "ВС")
 
     var selectedYear by remember { mutableIntStateOf(Calendar.getInstance().get(Calendar.YEAR)) }
     var selectedMonth by remember { mutableIntStateOf(Calendar.getInstance().get(Calendar.MONTH)) }
@@ -206,105 +205,190 @@ fun CalendarPage(notes: List<NoteItem>, onDayClick: (String) -> Unit, modifier: 
 
     val firstDay = Calendar.getInstance().apply { set(selectedYear, selectedMonth, 1) }
     val daysInMonth = firstDay.getActualMaximum(Calendar.DAY_OF_MONTH)
-    val startOffset = firstDay.get(Calendar.DAY_OF_WEEK) - 1
+    val mondayOffset = (firstDay.get(Calendar.DAY_OF_WEEK) + 5) % 7
 
-    Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(Color(0xFFF2F2F7))
+            .padding(10.dp)
+    ) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            modifier = Modifier.fillMaxWidth()
         ) {
             IconButton(onClick = {
-                if (showMonthPicker) selectedYear-- else {
-                    if (selectedMonth == 0) {
-                        selectedMonth = 11
-                        selectedYear--
-                    } else selectedMonth--
-                }
-            }) {
-                Icon(Icons.Default.KeyboardArrowLeft, contentDescription = "Назад")
-            }
+                if (showMonthPicker) selectedYear-- else if (selectedMonth == 0) {
+                    selectedMonth = 11
+                    selectedYear--
+                } else selectedMonth--
+            }) { Icon(Icons.Default.KeyboardArrowLeft, null) }
 
             Text(
-                text = "${months[selectedMonth]} $selectedYear",
-                style = MaterialTheme.typography.titleLarge,
+                text = if (showMonthPicker) "$selectedYear" else "${months[selectedMonth]} $selectedYear",
+                style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.clickable { showMonthPicker = !showMonthPicker }
             )
 
             IconButton(onClick = {
-                if (showMonthPicker) selectedYear++ else {
-                    if (selectedMonth == 11) {
-                        selectedMonth = 0
-                        selectedYear++
-                    } else selectedMonth++
-                }
-            }) {
-                Icon(Icons.Default.KeyboardArrowRight, contentDescription = "Вперед")
-            }
+                if (showMonthPicker) selectedYear++ else if (selectedMonth == 11) {
+                    selectedMonth = 0
+                    selectedYear++
+                } else selectedMonth++
+            }) { Icon(Icons.Default.KeyboardArrowRight, null) }
         }
 
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(8.dp))
 
-        if (showMonthPicker) {
-            FlowRow(
-                maxItemsInEachRow = 3,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                months.forEachIndexed { index, monthName ->
-                    FilterChip(
-                        selected = selectedMonth == index,
-                        onClick = {
-                            selectedMonth = index
-                            showMonthPicker = false
-                        },
-                        label = { Text(monthName) }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color.White, RoundedCornerShape(10.dp))
+                .padding(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            listOf("Месяц", "Неделя", "Год").forEachIndexed { idx, title ->
+                val selected = (idx == 0 && !showMonthPicker) || (idx == 2 && showMonthPicker)
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .background(if (selected) MaterialTheme.colorScheme.primary else Color.Transparent, RoundedCornerShape(8.dp))
+                        .padding(vertical = 10.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        title,
+                        color = if (selected) Color.White else Color(0xFF5F6368),
+                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
                     )
                 }
             }
-        } else {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                weekDays.forEach { day ->
-                    Text(day, modifier = Modifier.width(42.dp), textAlign = TextAlign.Center)
-                }
-            }
-            Spacer(Modifier.height(8.dp))
+        }
 
-            val totalCells = startOffset + daysInMonth
-            val rows = (totalCells + 6) / 7
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                var dayCounter = 1
-                repeat(rows) { rowIndex ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        repeat(7) { columnIndex ->
-                            val position = rowIndex * 7 + columnIndex
-                            if (position < startOffset || dayCounter > daysInMonth) {
-                                Box(Modifier.size(42.dp))
-                            } else {
-                                val date = String.format(
-                                    Locale.getDefault(),
+        Spacer(Modifier.height(8.dp))
+
+        if (showMonthPicker) {
+            MonthGridPicker(year = selectedYear, onPick = {
+                selectedMonth = it
+                showMonthPicker = false
+            })
+        } else {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .background(Color(0xFFE5E9F1), RoundedCornerShape(10.dp))
+                    .padding(8.dp)
+            ) {
+                Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        weekDays.forEach { day ->
+                            Text(
+                                day,
+                                modifier = Modifier.weight(1f),
+                                textAlign = TextAlign.Center,
+                                color = Color(0xFF90A4AE),
+                                style = MaterialTheme.typography.labelSmall
+                            )
+                        }
+                    }
+
+                    val totalCells = 42
+                    var day = 1
+                    repeat(6) { row ->
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            repeat(7) { col ->
+                                val index = row * 7 + col
+                                val inMonth = index >= mondayOffset && day <= daysInMonth
+                                val dateText = if (inMonth) String.format(
+                                    Locale("ru"),
                                     "%02d %s %d",
-                                    dayCounter,
+                                    day,
                                     months[selectedMonth],
                                     selectedYear
-                                )
-                                val hasNote = notes.any { it.date == date }
+                                ) else ""
+                                val hasNote = inMonth && notes.any { it.date == dateText }
                                 Box(
                                     modifier = Modifier
-                                        .size(42.dp)
-                                        .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape)
+                                        .weight(1f)
+                                        .height(72.dp)
                                         .background(
-                                            if (hasNote) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
-                                            else Color.Transparent,
-                                            CircleShape
+                                            when {
+                                                hasNote -> MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
+                                                inMonth -> Color(0xFFF7F8FA)
+                                                else -> Color(0xFFDDE2EA)
+                                            },
+                                            RoundedCornerShape(10.dp)
                                         )
-                                        .clickable { onDayClick(date) },
+                                        .clickable(enabled = inMonth) { onDayClick(dateText) },
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Text(dayCounter.toString())
+                                    Text(
+                                        if (inMonth) day.toString() else "",
+                                        color = if (hasNote) MaterialTheme.colorScheme.primary else Color(0xFF374151)
+                                    )
                                 }
-                                dayCounter++
+                                if (inMonth) day++
+                            }
+                        }
+                        if (day > daysInMonth && row > 3) return@repeat
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MonthGridPicker(year: Int, onPick: (Int) -> Unit) {
+    val months = listOf(
+        "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
+        "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"
+    )
+    val week = listOf("ПН", "ВТ", "СР", "ЧТ", "ПТ", "СБ", "ВС")
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        contentPadding = PaddingValues(bottom = 24.dp)
+    ) {
+        items(months.indices.toList()) { month ->
+            val cal = Calendar.getInstance().apply { set(year, month, 1) }
+            val days = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
+            val offset = (cal.get(Calendar.DAY_OF_WEEK) + 5) % 7
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onPick(month) },
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFF7F8FA))
+            ) {
+                Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(months[month], color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+                        Spacer(Modifier.weight(1f))
+                        Icon(Icons.Default.KeyboardArrowRight, null, tint = Color(0xFF9CA3AF))
+                    }
+                    Row(Modifier.fillMaxWidth()) {
+                        week.forEach { Text(it, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, style = MaterialTheme.typography.labelSmall, color = Color(0xFF90A4AE)) }
+                    }
+                    var d = 1
+                    repeat(2) { r ->
+                        Row(Modifier.fillMaxWidth()) {
+                            repeat(7) { c ->
+                                val idx = r * 7 + c
+                                val show = idx >= offset && d <= days
+                                Text(
+                                    text = if (show) d.toString() else "",
+                                    modifier = Modifier.weight(1f),
+                                    textAlign = TextAlign.Center,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color(0xFF4B5563)
+                                )
+                                if (show) d++
                             }
                         }
                     }
@@ -318,40 +402,38 @@ fun CalendarPage(notes: List<NoteItem>, onDayClick: (String) -> Unit, modifier: 
 fun NotesPage(notes: List<NoteItem>, onCreateClick: () -> Unit, modifier: Modifier = Modifier) {
     var query by remember { mutableStateOf("") }
     val filtered = notes.filter {
-        it.title.contains(query, true) ||
-            it.description.contains(query, true) ||
-            it.date.contains(query, true)
+        it.title.contains(query, true) || it.description.contains(query, true) || it.date.contains(query, true)
     }
 
-    Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
-        OutlinedTextField(
-            value = query,
-            onValueChange = { query = it },
-            label = { Text("Поиск заметок") },
-            modifier = Modifier.fillMaxWidth()
-        )
-        Spacer(Modifier.height(8.dp))
-        Button(onClick = onCreateClick, modifier = Modifier.fillMaxWidth()) {
-            Icon(Icons.Default.Favorite, contentDescription = null)
-            Spacer(Modifier.width(8.dp))
-            Text("Создать заметку")
+    Column(modifier = modifier.fillMaxSize().background(Color(0xFFF2F2F7)).padding(8.dp)) {
+        Card(shape = RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFFF8F8FB))) {
+            Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    leadingIcon = { Icon(Icons.Default.Search, null) },
+                    label = { Text("Поиск заметок...") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                Button(onClick = onCreateClick, modifier = Modifier.fillMaxWidth()) {
+                    Text("Новая заметка")
+                }
+            }
         }
-        Spacer(Modifier.height(12.dp))
 
-        if (filtered.isEmpty()) {
-            Text("Пока заметок нет", style = MaterialTheme.typography.bodyLarge)
-        } else {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(bottom = 48.dp)) {
-                items(filtered, key = { it.id }) { note ->
-                    Card(
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
-                    ) {
-                        Column(Modifier.padding(12.dp)) {
-                            Text(note.title, fontWeight = FontWeight.SemiBold)
-                            Text(note.description, style = MaterialTheme.typography.bodyMedium)
-                            Text(note.date, style = MaterialTheme.typography.labelMedium)
-                        }
+        Spacer(Modifier.height(10.dp))
+
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 80.dp)) {
+            items(filtered, key = { it.id }) { note ->
+                Card(
+                    shape = RoundedCornerShape(14.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFDFDFE))
+                ) {
+                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(note.title, fontWeight = FontWeight.SemiBold)
+                        Text(note.date, style = MaterialTheme.typography.labelMedium, color = Color(0xFF94A3B8))
+                        Text(note.description, minLines = 3)
                     }
                 }
             }
@@ -374,48 +456,56 @@ fun TasksPage(
         .filter {
             when (sortMode) {
                 TaskSortMode.ALL -> true
-                TaskSortMode.COMPLETED -> it.isDone
-                TaskSortMode.NOT_COMPLETED -> !it.isDone
+                TaskSortMode.ACTIVE -> it.status == TaskStatus.ACTIVE
+                TaskSortMode.COMPLETED -> it.status == TaskStatus.COMPLETED
                 TaskSortMode.HIGH -> it.priority == TaskPriority.HIGH
                 TaskSortMode.MEDIUM -> it.priority == TaskPriority.MEDIUM
                 TaskSortMode.LOW -> it.priority == TaskPriority.LOW
             }
         }
 
-    Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
-        OutlinedTextField(
-            value = query,
-            onValueChange = { query = it },
-            label = { Text("Поиск задач") },
-            modifier = Modifier.fillMaxWidth()
-        )
-        Spacer(Modifier.height(8.dp))
-        Button(onClick = onCreateClick, modifier = Modifier.fillMaxWidth()) {
-            Icon(Icons.Default.CheckCircle, contentDescription = null)
-            Spacer(Modifier.width(8.dp))
-            Text("Создать задачу")
-        }
-        Spacer(Modifier.height(8.dp))
-        Row(modifier = Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            TaskSortMode.entries.forEach {
-                FilterChip(selected = sortMode == it, onClick = { sortMode = it }, label = { Text(it.label) })
+    Column(modifier = modifier.fillMaxSize().background(Color(0xFFF2F2F7)).padding(8.dp)) {
+        Card(shape = RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFFF8F8FB))) {
+            Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(
+                        value = query,
+                        onValueChange = { query = it },
+                        leadingIcon = { Icon(Icons.Default.Search, null) },
+                        label = { Text("Поиск задач...") },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Button(onClick = onCreateClick, modifier = Modifier.size(48.dp), contentPadding = PaddingValues(0.dp)) { Text("+") }
+                }
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TaskSortMode.entries.forEach {
+                        FilterChip(selected = sortMode == it, onClick = { sortMode = it }, label = { Text(it.label) })
+                    }
+                }
             }
         }
-        Spacer(Modifier.height(12.dp))
 
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(bottom = 48.dp)) {
+        Spacer(Modifier.height(10.dp))
+
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(bottom = 80.dp)) {
             items(filtered, key = { it.id }) { task ->
-                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+                Card(shape = RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(12.dp),
+                        modifier = Modifier.fillMaxWidth().padding(10.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Checkbox(checked = task.isDone, onCheckedChange = { onToggleDone(task.id) })
+                        Checkbox(
+                            checked = task.status == TaskStatus.COMPLETED,
+                            onCheckedChange = { onToggleDone(task.id) }
+                        )
                         Column(modifier = Modifier.weight(1f).padding(horizontal = 8.dp)) {
                             Text(task.title, fontWeight = FontWeight.SemiBold)
-                            Text(task.description, style = MaterialTheme.typography.bodyMedium)
+                            Text(task.priority.label, color = task.priority.tint, style = MaterialTheme.typography.labelSmall)
+                            Text(task.description, style = MaterialTheme.typography.bodyMedium, color = Color(0xFF475569))
                         }
-                        Text(task.priority.label, color = task.priority.tint)
+                        Text(task.status.label, color = if (task.status == TaskStatus.COMPLETED) Color(0xFF16A34A) else Color(0xFF64748B))
                     }
                 }
             }
@@ -430,51 +520,98 @@ fun NoteDialog(date: String, onDismiss: () -> Unit, onSave: (String, String) -> 
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Новая заметка") },
+        title = { Text("Новая заметка", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(value = date, onValueChange = {}, readOnly = true, label = { Text("Дата") })
-                OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Название") })
+                OutlinedTextField(value = date, onValueChange = {}, readOnly = true, label = { Text("Дата") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Заголовок") }, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(
                     value = description,
                     onValueChange = { description = it },
-                    label = { Text("Описание") }
+                    label = { Text("Содержание") },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 6,
+                    maxLines = 10
                 )
             }
         },
-        confirmButton = {
-            Button(onClick = { if (title.isNotBlank()) onSave(title, description) }) { Text("Сохранить") }
-        },
+        confirmButton = { Button(onClick = { if (title.isNotBlank()) onSave(title, description) }) { Text("Сохранить") } },
         dismissButton = { OutlinedButton(onClick = onDismiss) { Text("Отмена") } }
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TaskDialog(onDismiss: () -> Unit, onSave: (String, String, TaskPriority) -> Unit) {
+fun TaskDialog(onDismiss: () -> Unit, onSave: (String, String, TaskPriority, TaskStatus) -> Unit) {
     var title by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
     var priority by remember { mutableStateOf(TaskPriority.MEDIUM) }
+    var status by remember { mutableStateOf(TaskStatus.ACTIVE) }
+    var priorityExpanded by remember { mutableStateOf(false) }
+    var statusExpanded by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Новая задача") },
+        title = { Text("Новая задача", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Название") })
+                OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Название") }, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(
                     value = description,
                     onValueChange = { description = it },
-                    label = { Text("Описание") }
+                    label = { Text("Описание") },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 4,
+                    maxLines = 8
                 )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TaskPriority.entries.forEach {
-                        FilterChip(selected = priority == it, onClick = { priority = it }, label = { Text(it.label) })
+
+                ExposedDropdownMenuBox(expanded = priorityExpanded, onExpandedChange = { priorityExpanded = !priorityExpanded }) {
+                    OutlinedTextField(
+                        value = priority.label,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Приоритет") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = priorityExpanded) },
+                        modifier = Modifier.fillMaxWidth().menuAnchor()
+                    )
+                    ExposedDropdownMenu(expanded = priorityExpanded, onDismissRequest = { priorityExpanded = false }) {
+                        TaskPriority.entries.forEach {
+                            androidx.compose.material3.DropdownMenuItem(
+                                text = { Text(it.label, color = it.tint) },
+                                onClick = {
+                                    priority = it
+                                    priorityExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+
+                ExposedDropdownMenuBox(expanded = statusExpanded, onExpandedChange = { statusExpanded = !statusExpanded }) {
+                    OutlinedTextField(
+                        value = status.label,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Статус") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = statusExpanded) },
+                        modifier = Modifier.fillMaxWidth().menuAnchor()
+                    )
+                    ExposedDropdownMenu(expanded = statusExpanded, onDismissRequest = { statusExpanded = false }) {
+                        TaskStatus.entries.forEach {
+                            androidx.compose.material3.DropdownMenuItem(
+                                text = { Text(it.label) },
+                                onClick = {
+                                    status = it
+                                    statusExpanded = false
+                                }
+                            )
+                        }
                     }
                 }
             }
         },
         confirmButton = {
-            Button(onClick = { if (title.isNotBlank()) onSave(title, description, priority) }) {
+            Button(onClick = { if (title.isNotBlank()) onSave(title, description, priority, status) }) {
                 Text("Сохранить")
             }
         },
@@ -485,5 +622,5 @@ fun TaskDialog(onDismiss: () -> Unit, onSave: (String, String, TaskPriority) -> 
 enum class AppDestinations(val label: String, val icon: ImageVector) {
     CALENDAR("Календарь", Icons.Default.Home),
     NOTES("Заметки", Icons.Default.Favorite),
-    TASKS("Задачи", Icons.Default.AccountBox),
+    TASKS("Задачи", Icons.Default.AccountBox)
 }
